@@ -55,18 +55,27 @@ def csv_helper(file_name: str) -> Iterator[Stock]:
             yield Stock.from_list(row)
 
 
-@op
-def get_s3_data():
-    pass
+@op(config_schema={"s3_key": String})
+def get_s3_data(context) -> List[Stock]:
+    s3_key = context.op_config["s3_key"]
+    data = csv_helper(s3_key)
+    return [stock for stock in data]
 
 
 @op
-def process_data():
-    pass
-
+def process_data(context, stocks: List[Stock]) -> Aggregation:
+    highest_price = 0.0
+    highest_price_index = 0
+    counter = 0
+    for stock in stocks:
+        if stock.high >= highest_price:
+            highest_price = stock.high
+            highest_price_index = counter
+        counter += 1
+    return Aggregation(stocks[highest_price_index].date, stocks[highest_price_index].high)
 
 @op
-def put_redis_data():
+def put_redis_data(context, aggregated_stock: Aggregation):
     pass
 
 
@@ -80,4 +89,4 @@ def empty_stock_notify(context, empty_stocks) -> Nothing:
 
 @job
 def week_1_challenge():
-    pass
+    get_s3_data
