@@ -89,4 +89,6 @@ def empty_stock_notify(context, empty_stocks) -> Nothing:
 
 @job
 def week_1_challenge():
-    get_s3_data
+    data = get_s3_data()
+    put_redis_data(process_data(data))
+    
