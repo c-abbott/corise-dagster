@@ -59,34 +59,37 @@ def csv_helper(file_name: str) -> Iterator[Stock]:
     config_schema={"s3_key": String},
     out={
         "stocks": Out(is_required=False, dagster_type=List[Stock]),
-        "empty_stocks": Out(is_required=False, dagster_type=List[Stock])
+        "empty_stocks": Out(is_required=False, dagster_type=Any)
     }
 )
 def get_s3_data(context) -> List[Stock]:
     s3_key = context.op_config["s3_key"]
     data = csv_helper(s3_key)
-    if bool(data) is False:
-        yield Output([], "empty_stocks")
-    else:
+    stocks = [stock for stock in data]
+    if stocks:
         yield Output([stock for stock in data], "stocks")
+    else:
+        yield Output(None, "empty_stocks")
 
 
 @op(
     config_schema={"nlargest": int},
-    out=DynamicOut()
+    out=DynamicOut(is_required=False, dagster_type=Aggregation)
 )
 def process_data(context, stocks: List[Stock]) -> Aggregation:
     prices = [stock.high for stock in stocks]
     indices = [i for i in range(len(prices))]
-    sorted_prices_and_indices = sorted(zip(prices, indices))
-    nlargest_indices = [i for _, i in sorted_prices_and_indices][:nlargest-1]
+    sorted_prices_and_indices = sorted (zip(prices, indices))
+    nlargest_indices = [i for _, i in sorted_prices_and_indices][:context.op_config["nlargest"]-1]
     
     for index in nlargest_indices:
-        yield DynamicOutput(Aggregation(date=stocks[index].date, high=stocks[index].high), mapping_key=stocks) 
+        yield DynamicOutput(Aggregation(date=stocks[index].date, high=stocks[index].high), mapping_key="aggregated_stocks") 
 
 
-@op
-def put_redis_data(context, aggregated_stock: Aggregation):
+@op(
+    out=Out(is_required=False, dagster_type=Nothing)
+)
+def put_redis_data(context, data: Aggregation):
     pass
 
 
@@ -101,6 +104,9 @@ def empty_stock_notify(context, empty_stocks) -> Nothing:
 @job
 def week_1_challenge():
     stocks, empty_stocks = get_s3_data()
+
     empty_stock_notify(empty_stocks)
-    process_data(stocks).map(put_redis_data)
+
+    aggregated_stock = process_data(stocks)
+    aggregated_stock.map(put_redis_data).collect()
     
