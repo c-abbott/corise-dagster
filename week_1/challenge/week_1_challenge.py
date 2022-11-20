@@ -55,24 +55,35 @@ def csv_helper(file_name: str) -> Iterator[Stock]:
             yield Stock.from_list(row)
 
 
-@op(config_schema={"s3_key": String})
+@op(
+    config_schema={"s3_key": String},
+    out={
+        "stocks": Out(is_required=False, dagster_type=List[Stock]),
+        "empty_stocks": Out(is_required=False, dagster_type=List[Stock])
+    }
+)
 def get_s3_data(context) -> List[Stock]:
     s3_key = context.op_config["s3_key"]
     data = csv_helper(s3_key)
-    return [stock for stock in data]
+    if bool(data) is False:
+        yield Output([], "empty_stocks")
+    else:
+        yield Output([stock for stock in data], "stocks")
 
 
-@op
+@op(
+    config_schema={"nlargest": int},
+    out=DynamicOut()
+)
 def process_data(context, stocks: List[Stock]) -> Aggregation:
-    highest_price = 0.0
-    highest_price_index = 0
-    counter = 0
-    for stock in stocks:
-        if stock.high >= highest_price:
-            highest_price = stock.high
-            highest_price_index = counter
-        counter += 1
-    return Aggregation(stocks[highest_price_index].date, stocks[highest_price_index].high)
+    prices = [stock.high for stock in stocks]
+    indices = [i for i in range(len(prices))]
+    sorted_prices_and_indices = sorted(zip(prices, indices))
+    nlargest_indices = [i for _, i in sorted_prices_and_indices][:nlargest-1]
+    
+    for index in nlargest_indices:
+        yield DynamicOutput(Aggregation(date=stocks[index].date, high=stocks[index].high), mapping_key=stocks) 
+
 
 @op
 def put_redis_data(context, aggregated_stock: Aggregation):
@@ -89,6 +100,7 @@ def empty_stock_notify(context, empty_stocks) -> Nothing:
 
 @job
 def week_1_challenge():
-    data = get_s3_data()
-    put_redis_data(process_data(data))
+    stocks, empty_stocks = get_s3_data()
+    empty_stock_notify(empty_stocks)
+    process_data(stocks).map(put_redis_data)
     
