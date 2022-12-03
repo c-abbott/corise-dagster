@@ -108,7 +108,16 @@ def s3_resource(context) --> S3:
     )
 
 
-@resource
+@resource(
+    config_schema={
+        "host": Field(String),
+        "port": Field(Int)
+    },
+    description="A resource that can write to a Redis cache"
+)
 def redis_resource():
     """This resource defines a Redis client"""
-    return
+    return Redis(
+        host=context.resource_config["host"],
+        port=context.resource_config["port"],
+    )
