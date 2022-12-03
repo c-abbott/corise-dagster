@@ -36,7 +36,7 @@ def put_redis_data(context, agg: Aggregation) -> Nothing:
 
 @op(
     required_resource_keys={"s3"},
-    tags={"kind": "S3"},
+    tags={"kind": "s3"},
     description="Take highest Stock date and value and upload this data to S3 bucket."
 )
 def put_s3_data(context, agg: Aggregation) -> Nothing:
