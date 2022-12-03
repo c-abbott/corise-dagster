@@ -11,24 +11,44 @@ from workspaces.types import Aggregation, Stock
     tags={"kind": "S3"},
     description="Fetches stock data from S3 bucket."
 )
-def get_s3_data():
+def get_s3_data(context):
     s3_key = context.op_config["s3_key"]
     return [Stock.from_list(item) for item in context.resources.S3.get_data(s3_key)]
    
 
-@op
-def process_data():
-    pass
+@op(
+    ins={"stocks": In(dagster_type=List[Stock])},
+    out={"agg": Out(dagster_type=Aggregation)}
+    description: "Returns the stock with the highest price and when that price was attained."
+)
+def process_data(context, stocks: List[Stock]) -> Aggregation:
+    highest_stock = max(stocks, key= lambda stock: stock.high)
+    return Aggregation(date=highest_stock.date,high=highest_stock.high)
 
 
-@op
-def put_redis_data():
-    pass
+@op(
+    required_resource_keys={"Redis"},
+    tags={"kind": "Redis"}
+    description="Take highest Stock date and value and upload this data to Redis cache."
+)
+def put_redis_data(context, agg: Aggregation) -> Nothing:
+    context.resources.Redis.put_data(name=str(agg.date), value=str(agg.high))
+
+@op(
+    required_resource_keys={"S3"},
+    tags={"kind": "S3"}
+    description="Take highest Stock date and value and upload this data to S3 bucket."
+)
+def put_s3_data(context, agg: Aggregation) -> Nothing:
+    context.resources.S3.put_data(key_name=str(agg.date), data=agg)
 
 
 @graph
 def week_2_pipeline():
-    pass
+    stocks = get_s3_data()
+    processed_stocks = process_data(stocks)
+    put_redis_data(processed_stocks)
+    put_s3_data(processed_stocks)
 
 
 local = {
