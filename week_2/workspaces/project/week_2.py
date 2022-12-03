@@ -5,10 +5,16 @@ from workspaces.resources import mock_s3_resource, redis_resource, s3_resource
 from workspaces.types import Aggregation, Stock
 
 
-@op
+@op(
+    config_schema={"s3_key": String},
+    required_resource_keys={"S3"},
+    tags={"kind": "S3"},
+    description="Fetches stock data from S3 bucket."
+)
 def get_s3_data():
-    pass
-
+    s3_key = context.op_config["s3_key"]
+    return [Stock.from_list(item) for item in context.resources.S3.get_data(s3_key)]
+   
 
 @op
 def process_data():
