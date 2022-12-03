@@ -107,7 +107,7 @@ def mock_s3_resource(context):
     },
     description="A resource that can read and write the contents of a file in S3",
 )
-def s3_resource(context) --> S3:
+def s3_resource(context) -> S3:
     """This resource defines a S3 client"""
     return S3(
         bucket=context.resource_config["bucket"],

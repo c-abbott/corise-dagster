@@ -18,8 +18,8 @@ def get_s3_data(context):
 
 @op(
     ins={"stocks": In(dagster_type=List[Stock])},
-    out={"agg": Out(dagster_type=Aggregation)}
-    description: "Returns the stock with the highest price and when that price was attained."
+    out={"agg": Out(dagster_type=Aggregation)},
+    description="Returns the stock with the highest price and when that price was attained.",
 )
 def process_data(context, stocks: List[Stock]) -> Aggregation:
     highest_stock = max(stocks, key= lambda stock: stock.high)
@@ -28,7 +28,7 @@ def process_data(context, stocks: List[Stock]) -> Aggregation:
 
 @op(
     required_resource_keys={"Redis"},
-    tags={"kind": "Redis"}
+    tags={"kind": "Redis"},
     description="Take highest Stock date and value and upload this data to Redis cache."
 )
 def put_redis_data(context, agg: Aggregation) -> Nothing:
@@ -36,7 +36,7 @@ def put_redis_data(context, agg: Aggregation) -> Nothing:
 
 @op(
     required_resource_keys={"S3"},
-    tags={"kind": "S3"}
+    tags={"kind": "S3"},
     description="Take highest Stock date and value and upload this data to S3 bucket."
 )
 def put_s3_data(context, agg: Aggregation) -> Nothing:
