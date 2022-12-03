@@ -45,20 +45,15 @@ def csv_helper(file_name: str) -> Iterator[Stock]:
 def get_s3_data(context) -> List[Stock]:
     s3_key = context.op_config["s3_key"]
     data = csv_helper(s3_key)
+
     return [stock for stock in data]
 
 
 @op
 def process_data(context, stocks: List[Stock]) -> Aggregation:
-    highest_price = 0.0
-    highest_price_index = 0
-    counter = 0
-    for stock in stocks:
-        if stock.high >= highest_price:
-            highest_price = stock.high
-            highest_price_index = counter
-        counter += 1
-    return Aggregation(date=stocks[highest_price_index].date, high=stocks[highest_price_index].high)
+    highest_stock = sorted(stocks, key=lambda x: x.high, reverse=True)[0]
+
+    return Aggregation(date=highest_stock.date, high=highest_stock.high)
 
 
 @op
